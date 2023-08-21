@@ -1,0 +1,29 @@
+name:                hmm
+version:             0.0.0.0
+synopsis:            Haskell MIDI Manipulator
+description:         Basic manipulation of MIDI music
+license:             MIT
+license-file:        LICENSE
+author:              patztablook22
+maintainer:          patrik.zavoral@gmail.com
+category:            Music
+build-type:          Simple
+extra-source-files:  README.md
+cabal-version:       >=1.10
+
+library
+  hs-source-dirs:    src
+  exposed-modules:   Hmm
+  build-depends:     base >=4.7,
+                     binary,
+                     bytestring
+
+test-suite hmm-tests
+  type:              exitcode-stdio-1.0
+  hs-source-dirs:    test
+  main-is:           Main.hs
+  build-depends:     base,
+                     hmm,
+                     HUnit,
+                     containers
+  ghc-options:       -Wall
