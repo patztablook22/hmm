@@ -16,7 +16,8 @@ library
   exposed-modules:   Hmm
   build-depends:     base >=4.7,
                      binary,
-                     bytestring
+                     bytestring,
+                     containers
 
 test-suite hmm-tests
   type:              exitcode-stdio-1.0
@@ -24,6 +25,5 @@ test-suite hmm-tests
   main-is:           Main.hs
   build-depends:     base,
                      hmm,
-                     HUnit,
-                     containers
+                     HUnit
   ghc-options:       -Wall

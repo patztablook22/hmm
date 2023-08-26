@@ -10,10 +10,10 @@ module Hmm
 , semitones, transposeNote, transposeSignature, transposeTrack
 , isTextEvent, isNameEvent, isSysExEvent, isNoteOnEvent, isNoteOffEvent
 , isCopyrightEvent, isInstrumentEvent, isUnknownMetaEvent
-, merge
+, merge, annotateChords
 , midiTrackName, midiNames, midiTrackInstruments, midiInstruments
 , midiCopyright
-, triad, rootedChord
+, rootedChord
 , Chord(..), ChordType(..), Extension(..)
 ) where
 
@@ -21,8 +21,9 @@ module Hmm
 import Data.List
 import Data.Maybe
 import Control.Monad
-import qualified Data.ByteString.Lazy as B
-import qualified Data.ByteString as B2
+import qualified Data.Set as S
+import qualified Data.ByteString.Lazy as BsL
+import qualified Data.ByteString as Bs
 import Data.Binary
 import Data.Binary.Get
 import Data.Binary.Put
@@ -30,14 +31,15 @@ import Data.Char
 
 readMidi :: FilePath -> IO Midi
 readMidi path = do
-    input <- B.readFile path
+    input <- BsL.readFile path
     return $! runGet getMidi input
 
 writeMidi :: FilePath -> Midi -> IO ()
 writeMidi path midi = do
     let bytes = runPut $! putMidi midi
-    B.writeFile path bytes
+    BsL.writeFile path bytes
 
+-- Enharnmonic equivalents included implicitly.
 data PitchClass = C | Csharp | D | Dsharp | E | F | Fsharp | G | Gsharp
                 | A | Asharp | B
                 deriving (Show, Eq)
@@ -45,7 +47,7 @@ data PitchClass = C | Csharp | D | Dsharp | E | F | Fsharp | G | Gsharp
 type Octave = Int
 data Note = Note PitchClass Octave deriving (Show, Eq)
 
--- see MIDI specification
+-- See MIDI specification.
 code2note :: Int -> Note
 code2note code = Note pc octave
     where octave = div code 12 - 1
@@ -62,7 +64,7 @@ code2note code = Note pc octave
                                    10 -> Asharp
                                    11 -> B
 
--- see MIDI specification
+-- See MIDI specification.
 note2code :: Note -> Int
 note2code (Note pc octave) = n + 12 * (octave + 1)
     where n = case pc of C      -> 0
@@ -78,23 +80,26 @@ note2code (Note pc octave) = n + 12 * (octave + 1)
                          Asharp -> 10
                          B      -> 11
 
+-- Compare notes by pitch.
 instance Ord Note where
     compare a b = compare (note2code a) (note2code b)
 
+-- See MIDI specification.
 data MidiFormat = SingleTrack | MultiTrack | MultiSong deriving (Eq, Show)
 
+-- See MIDI specification.
 data MidiHeader = MidiHeader
     { format            :: MidiFormat
     , ntracks           :: Int
     , division          :: Int
     } deriving Show
 
--- see MIDI specification 
--- for all following get/put functions
+-- See MIDI specification.
+-- For all following getXyz/putXyz functions.
 
 getMidiFormat :: Get MidiFormat
 getMidiFormat = do
-    nFormat <- fromIntegral <$> getWord16be
+    nFormat <- getWord16beAs
     return (case nFormat of
              0 -> SingleTrack
              1 -> MultiTrack
@@ -106,13 +111,15 @@ getWord32beAs = fromIntegral <$> getWord32be
 
 getMidiHeader :: Get MidiHeader
 getMidiHeader = do
-    chunkType <- getByteString 4
+    chunkType <- getByteString 4 -- "MThd"
     chunkLen <- getWord32beAs
     format <- getMidiFormat
     tracks <- getWord16beAs
     div <- getWord16beAs
     return $! MidiHeader format tracks div
 
+-- MIDI only requires major/minor (Ionian/Aeolian), 
+-- but this is a good generalization.
 data ChurchMode = Lydian | Ionian | Mixolydian | Dorian
                 | Aeolian | Phrygian | Locrian
                 deriving (Show, Eq)
@@ -142,8 +149,9 @@ data Event = NoteOn Channel Note Int
            | ReadError [Int]
            deriving (Show, Eq)
 
--- a sequence of bytes, each containing 7 bits of the quantity
--- and a 1-bit continue flag
+-- A sequence of bytes, each containing 
+--   7 bits of the quantity,
+--   1-bit continue flag.
 getVariableLengthQuantity :: Integral a => Get a
 getVariableLengthQuantity = do
     byte <- fromIntegral <$> getWord8
@@ -158,16 +166,16 @@ getVariableLengthQuantity = do
 putVariableLengthQuantity :: Integral a => a -> Put
 putVariableLengthQuantity value = do
     let data' = getData value
-    putByteString $! B2.pack $! map fromIntegral data'
+    putByteString $! Bs.pack $! map fromIntegral data'
     where getData value = if value < 128
                           then [value]
                           else ((128 + div value 128) : (getData $! mod value 128))
 
-getNote :: Get Note
 getNote = code2note <$> getWord8As
 
--- there is a MIDI format feature that allows to skip the current MIDI event status
--- if it is the same as the previous one, so it has to be deduced manually... yay
+-- There is a MIDI format feature that allows to skip the current 
+-- MIDI event status if it is the same as the previous one, 
+-- so it has to be deduced manually... yay.
 getMidiEventStatus :: Maybe (Integer, Int) -> Get Int
 getMidiEventStatus (Just (_, prev)) = do
     status <- lookAhead getWord8As
@@ -180,12 +188,13 @@ getMidiEventStatus Nothing = do
     status <- getWord8As
     return $! if div status 128 == 1 then status else undefined
 
--- this function does not cover all MIDI event types, as there is a gzillion of them.
--- but it covers the useful ones.
+-- This function does not cover all MIDI event types, 
+-- as there is a gzillion of them.
+-- But it covers the useful ones.
 getMidiEvent :: Maybe (Integer, Int) -> Get (MidiEvent, (Integer, Int))
 getMidiEvent prev = do
     let timePrev = case prev of (Just (tp, _)) -> tp; _ -> 0
-    time <- (timePrev+) <$> label "time" getVariableLengthQuantity
+    time <- (timePrev+) <$> getVariableLengthQuantity
     status <- getMidiEventStatus prev
     case status of
         0xFF -> do
@@ -260,7 +269,7 @@ getMidiEvent prev = do
 
             return $! (MidiEvent time event, (time, status))
 
--- consumes the entire byte sequence (potentially `isolate`d) as MIDI events
+-- Consumes the entire byte sequence (potentially `isolate`d) as MIDI events.
 getMidiEvents :: Maybe (Integer, Int) -> Get [MidiEvent]
 getMidiEvents prev = do
     end <- isEmpty
@@ -276,7 +285,7 @@ getMidiEvents prev = do
 
 getMidiTrack :: Get MidiTrack
 getMidiTrack = do
-    chunkType <- getByteString 4
+    chunkType <- getByteString 4 -- "MTrk"
     len <- getWord32beAs
     isolate len (getMidiEvents Nothing)
 
@@ -285,6 +294,7 @@ data Midi = Midi
     , tracks :: [MidiTrack]
     }
 
+-- For fancy printing.
 instance Show Midi where
     show midi = 
         "Midi {header = " ++ show (header midi) ++ ",\n      tracks = [" ++
@@ -300,11 +310,20 @@ getMidi = do
     tracks <- replicateM (ntracks header) getMidiTrack
     return $! Midi header tracks
         
+-- The interval between two notes in semitones.
 semitones :: Note -> Note -> Int
 semitones n1 n2 = (note2code n2) - (note2code n1)
 
+-- Transposes a note up/down.
 transposeNote :: Int -> Note -> Note
 transposeNote semitones = code2note . (+semitones) . note2code
+
+-- Transposes a signature using the circle of fiths
+--   e.g. transposing 1 flat up by 2 semitones (1 tone) 
+--   means going up by 2 fifths, so the resulting signature is 1 sharp.
+transposeSignature semitones sf = let sf' = mod (12 + (mod (sf + semitones * 7) 12)) 12
+                                      sf'' = if sf' <= 5 then sf' else sf' - 12
+                                  in sf''
 
 putMidi :: Midi -> Put
 putMidi midi = do
@@ -332,7 +351,7 @@ putMidiTrack :: MidiTrack -> Put
 putMidiTrack track = do
     putAsciiString "MTrk"
     let eventsBytes = runPut $! putEvents 0 track
-    putAsWord32be $! B.length eventsBytes
+    putAsWord32be $! BsL.length eventsBytes
     putLazyByteString eventsBytes
     where putEvents _ [] = return ()
           putEvents timePrev (e@(MidiEvent time _):es) = do
@@ -341,8 +360,8 @@ putMidiTrack track = do
 
 putVariableLengthBytes :: Integral a => [a] -> Put 
 putVariableLengthBytes ints = do
-    let bytes = runPut $! putByteString $! B2.pack $! map fromIntegral ints
-    putVariableLengthQuantity $! B.length bytes
+    let bytes = runPut $! putByteString $! Bs.pack $! map fromIntegral ints
+    putVariableLengthQuantity $! BsL.length bytes
     putLazyByteString bytes
 
 putVariableLengthString :: [Char] -> Put 
@@ -350,12 +369,14 @@ putVariableLengthString = putVariableLengthBytes . (map ord)
 
 putFixedLengthBytes :: Integral a => [a] -> Put
 putFixedLengthBytes ints = do
-    let bytes = runPut $! putByteString $! B2.pack $! map fromIntegral ints
+    let bytes = runPut $! putByteString $! Bs.pack $! map fromIntegral ints
     putLazyByteString bytes
 
 putNote :: Note -> Put
 putNote = putWord8 . fromIntegral . note2code
 
+-- Again, only implementing some crucial events;
+-- otherwise it would just be too much work for one project.
 putMidiEvent :: Integer -> MidiEvent -> Put
 putMidiEvent timePrev (MidiEvent time event) = do
     putVariableLengthQuantity $! time - timePrev
@@ -410,6 +431,10 @@ putMidiEvent timePrev (MidiEvent time event) = do
             putVariableLengthBytes data'
         _ -> do return ()
 
+-- Helpful predicates for filtering events follow,
+-- e.g. `filter isTextEvent midiTrack` to extract all text events,
+--      `filter isNoteEvent midiTrack` to extract all note on/off events.
+
 isTextEvent (MidiEvent _ (Text _)) = True
 isTextEvent _ = False
 
@@ -421,6 +446,8 @@ isNoteOnEvent _ = False
 
 isNoteOffEvent (MidiEvent _ (NoteOff _ _ _)) = True
 isNoteOffEvent _ = False
+
+isNoteEvent e = isNoteOnEvent e || isNoteOffEvent e
 
 isSysExEvent (MidiEvent _ (SysEx _)) = True
 isSysExEvent _ = False
@@ -434,7 +461,9 @@ isInstrumentEvent _ = False
 isUnknownMetaEvent (MidiEvent _ (UnknownMeta _ _)) = True
 isUnknownMetaEvent _ = False
 
--- merges two MIDI tracks into one
+-- Merges two MIDI tracks into one.
+-- E.g. to add the bassline into the piano track:
+-- `merged = merge basslineTrack pianoTrack`
 merge :: MidiTrack -> MidiTrack -> MidiTrack
 merge (e1@(MidiEvent time1 _):es1) (e2@(MidiEvent time2 _):es2)
     | time1 <= time2 = (e1 : merge es1 (e2:es2))
@@ -442,37 +471,38 @@ merge (e1@(MidiEvent time1 _):es1) (e2@(MidiEvent time2 _):es2)
 merge [] es2 = es2
 merge es1 [] = es1
 
+-- Helper function for accumulating metadata collected from a MIDI track.
 getMetaMany :: (MidiEvent -> Maybe a) -> MidiTrack -> [a]
 getMetaMany getter es = [j | Just j <- map getter es]
 
-isTime :: (Integer -> Bool) -> MidiEvent -> Bool
-isTime whether (MidiEvent t _) = whether t
-
+-- Returns contents of all Name events in a track.
 midiTrackName :: MidiTrack -> Maybe String
 midiTrackName = listToMaybe . getMetaMany getter
     where getter (MidiEvent 0 (Name s)) = Just s
           getter _ = Nothing
 
+-- Returns contents of all Name events in a MIDI.
 midiNames :: Midi -> [String]
 midiNames = catMaybes . map midiTrackName . tracks
 
+-- Returns contents of all Instrument events in a track.
 midiTrackInstruments :: MidiTrack -> [String]
 midiTrackInstruments = getMetaMany getter
     where getter (MidiEvent _ (Instrument s)) = Just s
           getter _ = Nothing
 
+-- Returns contents of all Instrument events in a MIDI.
 midiInstruments :: Midi -> [String]
 midiInstruments =  concatMap midiTrackInstruments . tracks
 
+-- Returns MIDI copyright if present.
 midiCopyright :: Midi -> Maybe String
 midiCopyright = listToMaybe . concatMap (getMetaMany getter) . tracks
     where getter (MidiEvent 0 (Copyright s)) = Just s
           getter _ = Nothing
 
-transposeSignature semitones sf = let sf' = mod (12 + (mod (sf + semitones * 7) 12)) 12
-                                      sf'' = if sf' <= 5 then sf' else sf' - 12
-                                  in sf''
-
+-- Transposes all note-related events;
+-- includes note on/off events, key pressure events, key signature events.
 transposeTrack :: Int -> MidiTrack -> MidiTrack
 transposeTrack semitones = map f
     where tn = transposeNote semitones
@@ -496,27 +526,9 @@ instance Show Extension where
     show (Sharp n) = "Sharp " ++ show n
     show (Flat n) = "Flat " ++ show n 
 
-triad :: [Note] -> Maybe Chord
-triad notes = let pairs = orderedPairs notes
-                  isOuter (a,b) = mod (semitones a b) 12 `elem` [5,6,7]
-               in case find isOuter pairs of
-                    Nothing -> Nothing
-                    Just (o1, o2) -> 
-                      let
-                          r@(Note root _) = if semitones o1 o2 `mod` 12 /= 5 then o1 else o2
-                          degs = map (\n -> semitones r n `mod` 12) notes
-                          quality
-                              | elem 4 degs = Maj
-                              | elem 3 degs = Min
-                              | otherwise = Sus4
-                      in Just $! Chord root quality []
-
-orderedPairs :: [a] -> [(a, a)]
-orderedPairs [] = []
-orderedPairs (x:xs) = map ((,) x) xs ++ orderedPairs xs
-
-rootedChord :: [Note] -> Chord
-rootedChord notes = let (r@(Note root _) : rest) = sortOn note2code notes
+rootedChord :: [Note] -> Maybe Chord
+rootedChord [] = Nothing
+rootedChord notes = let (r@(Note root _) : rest) = sort notes
                         intervals = map ((`mod` 12) . semitones r) rest
                         hasThird = elem 3 intervals || elem 4 intervals
                         hasMinorThird = elem 3 intervals 
@@ -573,4 +585,28 @@ rootedChord notes = let (r@(Note root _) : rest) = sortOn note2code notes
                                             Nothing -> exts
                                             Just hn -> (hn : filter (not . isNaturalExt) exts)
 
-                    in Chord root ct (compress exts)
+                    in Just $ Chord root ct (compress exts)
+
+annotateChords = annotate1 S.empty
+annotate1 :: S.Set Note -> ([Note] -> Maybe Chord) -> MidiTrack -> MidiTrack
+annotate1 _ _ [] = [] 
+annotate1 active annotator (e@(MidiEvent t (NoteOn _ n _)) : es) = 
+    if instantChange e es || isNothing chord 
+        then e : rest 
+        else e : (MidiEvent t $! Text $! show $! fromJust chord) : rest
+    where active' = S.insert n active
+          chord = annotator $! S.toList active'
+          rest = annotate1 active' annotator es
+
+annotate1 active annotator (e@(MidiEvent t (NoteOff _ n _)) : es) = 
+    if instantChange e es || isNothing chord 
+        then e : rest 
+        else e : (MidiEvent t $! Text $! show $! fromJust chord) : rest
+    where active' = S.delete n active
+          chord = annotator $! S.toList active'
+          rest = annotate1 active' annotator es
+
+annotate1 active annotator (e:es) = e : annotate1 active annotator es
+
+instantChange (MidiEvent t1 _) ((MidiEvent t2 _):_) = t1 == t2
+instantChange _ _ = False
