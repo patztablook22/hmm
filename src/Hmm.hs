@@ -29,6 +29,7 @@ import Data.Binary.Get
 import Data.Binary.Put
 import Data.Char
 
+
 readMidi :: FilePath -> IO Midi
 readMidi path = do
     input <- BsL.readFile path
@@ -40,6 +41,7 @@ writeMidi path midi = do
     BsL.writeFile path bytes
 
 -- Enharnmonic equivalents included implicitly.
+--     e.g. Eflat would be Dsharp, Gflat would be Fsharp
 data PitchClass = C | Csharp | D | Dsharp | E | F | Fsharp | G | Gsharp
                 | A | Asharp | B
                 deriving (Show, Eq)
@@ -47,7 +49,7 @@ data PitchClass = C | Csharp | D | Dsharp | E | F | Fsharp | G | Gsharp
 type Octave = Int
 data Note = Note PitchClass Octave deriving (Show, Eq)
 
--- See MIDI specification.
+-- See MIDI specification (Table of MIDI Note Numbers).
 code2note :: Int -> Note
 code2note code = Note pc octave
     where octave = div code 12 - 1
@@ -64,7 +66,7 @@ code2note code = Note pc octave
                                    10 -> Asharp
                                    11 -> B
 
--- See MIDI specification.
+-- See MIDI specification (Table of MIDI Note Numbers).
 note2code :: Note -> Int
 note2code (Note pc octave) = n + 12 * (octave + 1)
     where n = case pc of C      -> 0
@@ -81,13 +83,14 @@ note2code (Note pc octave) = n + 12 * (octave + 1)
                          B      -> 11
 
 -- Compare notes by pitch.
+--     e.g. (Note D 2) > (Note C 2) because it is "higher".
 instance Ord Note where
     compare a b = compare (note2code a) (note2code b)
 
--- See MIDI specification.
+-- See MIDI specification ("<format>").
 data MidiFormat = SingleTrack | MultiTrack | MultiSong deriving (Eq, Show)
 
--- See MIDI specification.
+-- See MIDI specification (Header Chunks).
 data MidiHeader = MidiHeader
     { format            :: MidiFormat
     , ntracks           :: Int
@@ -120,6 +123,8 @@ getMidiHeader = do
 
 -- MIDI only requires major/minor (Ionian/Aeolian), 
 -- but this is a good generalization.
+-- Saving an invalid mode results in error.
+-- See MIDI file specification (Key Signature).
 data ChurchMode = Lydian | Ionian | Mixolydian | Dorian
                 | Aeolian | Phrygian | Locrian
                 deriving (Show, Eq)
@@ -150,8 +155,8 @@ data Event = NoteOn Channel Note Int
            deriving (Show, Eq)
 
 -- A sequence of bytes, each containing 
---   7 bits of the quantity,
---   1-bit continue flag.
+--     7 bits of the quantity,
+--     1-bit continue flag.
 getVariableLengthQuantity :: Integral a => Get a
 getVariableLengthQuantity = do
     byte <- fromIntegral <$> getWord8
@@ -176,6 +181,7 @@ getNote = code2note <$> getWord8As
 -- There is a MIDI format feature that allows to skip the current 
 -- MIDI event status if it is the same as the previous one, 
 -- so it has to be deduced manually... yay.
+-- See MIDI file specification ("Running status").
 getMidiEventStatus :: Maybe (Integer, Int) -> Get Int
 getMidiEventStatus (Just (_, prev)) = do
     status <- lookAhead getWord8As
@@ -188,9 +194,12 @@ getMidiEventStatus Nothing = do
     status <- getWord8As
     return $! if div status 128 == 1 then status else undefined
 
+
+
 -- This function does not cover all MIDI event types, 
 -- as there is a gzillion of them.
 -- But it covers the useful ones.
+-- See MIDI file specification (e.g. Table of Major MIDI Messages).
 getMidiEvent :: Maybe (Integer, Int) -> Get (MidiEvent, (Integer, Int))
 getMidiEvent prev = do
     let timePrev = case prev of (Just (tp, _)) -> tp; _ -> 0
@@ -269,7 +278,10 @@ getMidiEvent prev = do
 
             return $! (MidiEvent time event, (time, status))
 
--- Consumes the entire byte sequence (potentially `isolate`d) as MIDI events.
+
+
+-- Consumes the entire byte sequence as MIDI events.
+-- intended to be used together with `isolate`, see `getMidiTrack`.
 getMidiEvents :: Maybe (Integer, Int) -> Get [MidiEvent]
 getMidiEvents prev = do
     end <- isEmpty
@@ -294,7 +306,14 @@ data Midi = Midi
     , tracks :: [MidiTrack]
     }
 
--- For fancy printing.
+getMidi :: Get Midi
+getMidi = do
+    header <- getMidiHeader
+    tracks <- replicateM (ntracks header) getMidiTrack
+    return $! Midi header tracks
+
+-- For fancy printing. 
+-- It is the same as the default `show` except for cute indentation.
 instance Show Midi where
     show midi = 
         "Midi {header = " ++ show (header midi) ++ ",\n      tracks = [" ++
@@ -304,26 +323,31 @@ instance Show Midi where
               showTrack :: MidiTrack -> String
               showTrack track = "[" ++ foldr1 (page 17) (map show track) ++ "]"
 
-getMidi :: Get Midi
-getMidi = do
-    header <- getMidiHeader
-    tracks <- replicateM (ntracks header) getMidiTrack
-    return $! Midi header tracks
-        
+
+
 -- The interval between two notes in semitones.
+--     e.g. `semitones (Note C 2) (Note G 2) = 7`, 
+--     as there is 7 semitones in a perfect fifth.
 semitones :: Note -> Note -> Int
 semitones n1 n2 = (note2code n2) - (note2code n1)
 
 -- Transposes a note up/down.
+--     e.g. `transposeNote 7 (Note C 2) = Note G 2`
+--     again, positive 7 semitones means a perfect fifth up
+--     e.g. `transposeNote (-7) (Note C 2) = Note F 1`
+--     negative sign changes the direction of transposition
 transposeNote :: Int -> Note -> Note
 transposeNote semitones = code2note . (+semitones) . note2code
 
 -- Transposes a signature using the circle of fiths
 --   e.g. transposing 1 flat up by 2 semitones (1 tone) 
---   means going up by 2 fifths, so the resulting signature is 1 sharp.
+--   means going up by 2 fifths, so the resulting signature is 1 sharp:
+--   `transposeSignature 2 -1 = 1`
 transposeSignature semitones sf = let sf' = mod (12 + (mod (sf + semitones * 7) 12)) 12
                                       sf'' = if sf' <= 5 then sf' else sf' - 12
                                   in sf''
+
+
 
 putMidi :: Midi -> Put
 putMidi midi = do
@@ -374,6 +398,8 @@ putFixedLengthBytes ints = do
 
 putNote :: Note -> Put
 putNote = putWord8 . fromIntegral . note2code
+
+
 
 -- Again, only implementing some crucial events;
 -- otherwise it would just be too much work for one project.
@@ -431,9 +457,11 @@ putMidiEvent timePrev (MidiEvent time event) = do
             putVariableLengthBytes data'
         _ -> do return ()
 
+
+
 -- Helpful predicates for filtering events follow,
--- e.g. `filter isTextEvent midiTrack` to extract all text events,
---      `filter isNoteEvent midiTrack` to extract all note on/off events.
+--     e.g. `filter isTextEvent midiTrack` to extract all text events,
+--          `filter isNoteEvent midiTrack` to extract all note on/off events.
 
 isTextEvent (MidiEvent _ (Text _)) = True
 isTextEvent _ = False
@@ -461,9 +489,11 @@ isInstrumentEvent _ = False
 isUnknownMetaEvent (MidiEvent _ (UnknownMeta _ _)) = True
 isUnknownMetaEvent _ = False
 
+
+
 -- Merges two MIDI tracks into one.
--- E.g. to add the bassline into the piano track:
--- `merged = merge basslineTrack pianoTrack`
+--     e.g. to add the bassline into the piano track:
+--     `merged = merge basslineTrack pianoTrack`
 merge :: MidiTrack -> MidiTrack -> MidiTrack
 merge (e1@(MidiEvent time1 _):es1) (e2@(MidiEvent time2 _):es2)
     | time1 <= time2 = (e1 : merge es1 (e2:es2))
@@ -501,8 +531,12 @@ midiCopyright = listToMaybe . concatMap (getMetaMany getter) . tracks
     where getter (MidiEvent 0 (Copyright s)) = Just s
           getter _ = Nothing
 
+
+
 -- Transposes all note-related events;
--- includes note on/off events, key pressure events, key signature events.
+-- includes note on/off events, 
+--          key pressure events, 
+--          key signature events.
 transposeTrack :: Int -> MidiTrack -> MidiTrack
 transposeTrack semitones = map f
     where tn = transposeNote semitones
@@ -516,15 +550,31 @@ transposeTrack semitones = map f
             (MidiEvent t (KeySignature (transposeSignature semitones sf) mode))
           f e = e
 
+
+-- My attempt of algorithmic harmonic analysis using jazz theory follows.
+
 data Chord = Chord PitchClass ChordType [Extension] deriving Show
 data ChordType = Min | Maj | MinMaj | Dom | Aug | Dim | HalfDim 
                | Sus2 | Sus4
                deriving (Show, Eq)
 data Extension = Natural Int | Sharp Int | Flat Int deriving Eq
+
 instance Show Extension where
     show (Natural n) = show n
     show (Sharp n) = "Sharp " ++ show n
     show (Flat n) = "Flat " ++ show n 
+
+
+
+-- The following function has a lot of theoretical holes and is not very robust,
+-- given that many musical concepts only make sense in the context they are played.
+-- The function is based on a few heuristics that I use when playing.
+-- It interprets a given list of notes as a rooted jazz chord.
+--     e.g. `rootedChord [Note C 1, Note E 1, Note G 1, Note B 1, Note D 2]`
+--          gives (Just) `Chord C Maj [9]`
+-- It handles different voicings and alterations:
+--     e.g. `rootedChord [Note C 1, Note B 1, Note E 2, Note Fsharp 2]`
+--          results in (Just) `Chord C Maj [9, Sharp 11]`
 
 rootedChord :: [Note] -> Maybe Chord
 rootedChord [] = Nothing
@@ -586,6 +636,15 @@ rootedChord notes = let (r@(Note root _) : rest) = sort notes
                                             Just hn -> (hn : filter (not . isNaturalExt) exts)
 
                     in Just $ Chord root ct (compress exts)
+
+
+
+-- General chord annotation helper. 
+-- It takes the annotator ([Note] -> Maybe Chord). e.g. `rootedChord` above,
+-- and applies it gradually, as it keeps track of all currently played notes.
+-- Note: I originally thought I'd add `triad` annotator, that would recognize
+-- all inversions of just the basic major/minor triads, but the code turned out
+-- to be way too long already, so I changed my mind.
 
 annotateChords = annotate1 S.empty
 annotate1 :: S.Set Note -> ([Note] -> Maybe Chord) -> MidiTrack -> MidiTrack
