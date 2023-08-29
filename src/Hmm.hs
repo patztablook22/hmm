@@ -553,7 +553,7 @@ transposeTrack semitones = map f
           f e = e
 
 
--- My attempt of algorithmic harmonic analysis using jazz theory follows.
+-- My attempt at algorithmic harmonic analysis using jazz theory follows.
 
 data Chord = Chord PitchClass ChordType [Extension] deriving Show
 data ChordType = Min | Maj | MinMaj | Dom | Aug | Dim | HalfDim 
