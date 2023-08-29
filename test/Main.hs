@@ -5,9 +5,12 @@ import Hmm
 
 
 dostuff = do
-    let path = "/home/patz/Downloads/Never-Gonna-Give-You-Up-1.mid"
-    midi <- readMidi path
-    print $! Midi (header midi) [annotateChords rootedChord (tracks midi !! 1)]
+    let (semitonesStr : input : output : _) = ["-1", "never-gonna-give-you-up.mid", "asdf.mid"]
+    let semitones = read semitonesStr :: Int
+    midi <- readMidi input
+    let midi' = Midi {header = header midi,
+                      tracks = map (transposeTrack semitones) (tracks midi)}
+    writeMidi output midi'
 
 test1 :: Test
 test1 = TestCase (dostuff)

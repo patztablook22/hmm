@@ -8,7 +8,8 @@ module Hmm
 , Midi(..), MidiHeader(..), MidiTrack(..), MidiEvent(..), Event(..)
 , PitchClass(..), Octave(..), Note(..)
 , semitones, transposeNote, transposeSignature, transposeTrack
-, isTextEvent, isNameEvent, isSysExEvent, isNoteOnEvent, isNoteOffEvent
+, isTextEvent, isNameEvent, isSysExEvent
+, isNoteOnEvent, isNoteOffEvent, isNoteEvent
 , isCopyrightEvent, isInstrumentEvent, isUnknownMetaEvent
 , merge, annotateChords
 , midiTrackName, midiNames, midiTrackInstruments, midiInstruments
@@ -155,23 +156,22 @@ data Event = NoteOn Channel Note Int
            deriving (Show, Eq)
 
 -- A sequence of bytes, each containing 
---     7 bits of the quantity,
+--     7 bits of the quantity value,
 --     1-bit continue flag.
 getVariableLengthQuantity :: Integral a => Get a
 getVariableLengthQuantity = do
     byte <- fromIntegral <$> getWord8
     let value = mod byte 128
-    let bit7 = div byte 128
-    if bit7 == 0
+    let flag = div byte 128
+    if flag == 0
         then return value
         else do
             rest <- getVariableLengthQuantity
             return $! value * 128 + rest
 
 putVariableLengthQuantity :: Integral a => a -> Put
-putVariableLengthQuantity value = do
-    let data' = getData value
-    putByteString $! Bs.pack $! map fromIntegral data'
+putVariableLengthQuantity value = 
+    putByteString $! Bs.pack $! map fromIntegral (getData value)
     where getData value = if value < 128
                           then [value]
                           else ((128 + div value 128) : (getData $! mod value 128))
@@ -311,6 +311,8 @@ getMidi = do
     header <- getMidiHeader
     tracks <- replicateM (ntracks header) getMidiTrack
     return $! Midi header tracks
+
+
 
 -- For fancy printing. 
 -- It is the same as the default `show` except for cute indentation.
