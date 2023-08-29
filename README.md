@@ -53,3 +53,15 @@ Example run:
 ./transpose 7 never-gonna-give-you-up.mid never-gonna-give-you-up-transposed.mid
 ```
 Now, `never-gonna-give-you-up-transposed.mid` contains the original track transposed up by 7 semitones (i.e. the perfect fifth).
+
+## Installation
+
+```sh
+# Clone the repo
+git clone https://github.com/patztablook22/hmm
+
+# Use cabal to build and install it
+cd hmm
+cabal build
+cabal install --lib
+```
