@@ -644,7 +644,7 @@ rootedChord notes = let (r@(Note root _) : rest) = sort notes
 -- General chord annotation helper. 
 -- It takes the annotator ([Note] -> Maybe Chord). e.g. `rootedChord` above,
 -- and applies it gradually, as it keeps track of all currently played notes.
--- Note: I originally thought I'd add `triad` annotator, that would recognize
+-- Note: I originally thought I'd add `triad` annotator that would recognize
 -- all inversions of just the basic major/minor triads, but the code turned out
 -- to be way too long already, so I changed my mind.
 
