@@ -34,7 +34,7 @@ MidiHeader {format = MultiTrack, ntracks = 17, division = 384}
 ### Transpose MIDI
 
 ```hs
--- example/transpose.hs
+-- examples/transpose.hs
 
 import Hmm
 import System.Environment
