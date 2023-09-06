@@ -121,8 +121,29 @@ let newSignature = transposeSignature upMaj3rd twoFlats
 
 Transposes by a given interval the entire MIDI track. This includes all note-related events and all key signature events.
 ```hs
-let track = ...
+let track = ... :: MidiTrack
 let octave = 12
 let track' = transposeTrack octave track
+```
+
+- `isTextEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Text payload.
+- `isNameEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Name payload.
+- `isSysExEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains SysEx payload.
+- `isNoteOnEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOn payload.
+- `isNoteOffEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOff payload.
+- `isNoteEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOn or NoteOff payload.
+- `isCopyrightEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Copyright payload.
+- `isInstrumentEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Instrument payload.
+- `isUnknownMetaEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains UnknownMeta payload.
+
+
+- `merge :: MidiTrack -> MidiTrack -> MidiTrack`
+
+Merges two MIDI tracks into one.
+```hs
+let pianoLeftHand = ... :: MidiTrack
+let pianoRightHand = ... :: MidiTrack
+
+let pianoBothHands = merge pianoLeftHand pianoRightHand
 ```
 
