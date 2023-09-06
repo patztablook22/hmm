@@ -65,3 +65,64 @@ cd hmm
 cabal build
 cabal install --lib
 ```
+
+## Functions
+- `readMidi :: FilePath -> IO Midi`
+
+Reads given MIDI file
+```hs
+main = do
+    midi <- readMidi "myFile.mid"
+```
+
+- `writeMidi :: FilePath -> Midi -> IO()`
+
+- Writes given MIDI into file
+```hs
+main = do
+    let midi = ... :: Midi
+    writeMidi "myFile.mid" midi
+```
+
+- `semitones :: Note -> Note -> Int`
+
+Returns the interval between two notes in semitones.
+```hs
+let fifth = semitones (Note C 2) (Note G 2)
+-- returns 7
+
+let back = semitones (Note G 2) (Note C 2)
+-- returns -7
+```
+
+- `transposeNote :: Int -> Note -> Note`
+
+Transposes a note by the given interval in semitones.
+```hs
+let fifthUp = transpose 7 (Note C 2)
+-- returns (Note G 2)
+
+let fifthDn = transpose (-7) (Note C 2)
+-- returns (Note F 1)
+```
+
+- `transposeSignature :: Int -> Int -> Int`
+
+Transposes by a given interval in semitones (1st argument) the given key signature (2nd argument).
+```hs
+let twoFlats = -2
+let upMaj3rd = 4
+
+let newSignature = transposeSignature upMaj3rd twoFlats
+-- returns 2, i.e. 2 sharps
+```
+
+- `transposeTrack :: Int -> MidiTrack -> MidiTrack`
+
+Transposes by a given interval the entire MIDI track. This includes all note-related events and all key signature events.
+```hs
+let track = ...
+let octave = 12
+let track' = transposeTrack octave track
+```
+
