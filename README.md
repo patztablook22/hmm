@@ -67,7 +67,7 @@ cabal install --lib
 ```
 
 ## Functions
-- `readMidi :: FilePath -> IO Midi`
+`readMidi :: FilePath -> IO Midi`
 
 Reads given MIDI file
 ```hs
@@ -75,16 +75,20 @@ main = do
     midi <- readMidi "myFile.mid"
 ```
 
-- `writeMidi :: FilePath -> Midi -> IO()`
+<br />
 
-- Writes given MIDI into file
+`writeMidi :: FilePath -> Midi -> IO()`
+
+Writes given MIDI into file
 ```hs
 main = do
     let midi = ... :: Midi
     writeMidi "myFile.mid" midi
 ```
 
-- `semitones :: Note -> Note -> Int`
+<br />
+
+`semitones :: Note -> Note -> Int`
 
 Returns the interval between two notes in semitones.
 ```hs
@@ -95,7 +99,9 @@ let back = semitones (Note G 2) (Note C 2)
 -- returns -7
 ```
 
-- `transposeNote :: Int -> Note -> Note`
+<br />
+
+`transposeNote :: Int -> Note -> Note`
 
 Transposes a note by the given interval in semitones.
 ```hs
@@ -106,7 +112,9 @@ let fifthDn = transpose (-7) (Note C 2)
 -- returns (Note F 1)
 ```
 
-- `transposeSignature :: Int -> Int -> Int`
+<br />
+
+`transposeSignature :: Int -> Int -> Int`
 
 Transposes by a given interval in semitones (1st argument) the given key signature (2nd argument).
 ```hs
@@ -116,8 +124,9 @@ let upMaj3rd = 4
 let newSignature = transposeSignature upMaj3rd twoFlats
 -- returns 2, i.e. 2 sharps
 ```
+<br />
 
-- `transposeTrack :: Int -> MidiTrack -> MidiTrack`
+`transposeTrack :: Int -> MidiTrack -> MidiTrack`
 
 Transposes by a given interval the entire MIDI track. This includes all note-related events and all key signature events.
 ```hs
@@ -125,19 +134,29 @@ let track = ... :: MidiTrack
 let octave = 12
 let track' = transposeTrack octave track
 ```
+<br />
 
-- `isTextEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Text payload.
-- `isNameEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Name payload.
-- `isSysExEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains SysEx payload.
-- `isNoteOnEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOn payload.
-- `isNoteOffEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOff payload.
-- `isNoteEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOn or NoteOff payload.
-- `isCopyrightEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Copyright payload.
-- `isInstrumentEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Instrument payload.
-- `isUnknownMetaEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains UnknownMeta payload.
+`isTextEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Text payload.
 
+`isNameEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Name payload.
 
-- `merge :: MidiTrack -> MidiTrack -> MidiTrack`
+`isSysExEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains SysEx payload.
+
+`isNoteOnEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOn payload.
+
+`isNoteOffEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOff payload.
+
+`isNoteEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOn or NoteOff payload.
+
+`isCopyrightEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Copyright payload.
+
+`isInstrumentEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Instrument payload.
+
+`isUnknownMetaEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains UnknownMeta payload.
+
+<br />
+
+`merge :: MidiTrack -> MidiTrack -> MidiTrack`
 
 Merges two MIDI tracks into one.
 ```hs
@@ -147,3 +166,59 @@ let pianoRightHand = ... :: MidiTrack
 let pianoBothHands = merge pianoLeftHand pianoRightHand
 ```
 
+<br />
+
+`midiTrackName :: MidiTrack -> Maybe String`
+
+Extracts the track's name, if provided by a Name event.
+
+<br />
+
+`midiNames :: Midi -> [String]`
+
+Returns the names of all named MidiTracks.
+
+<br />
+
+`midiTrackInstruments :: MidiTrack -> [String]`
+
+Returns the names of all instruments in a single MidiTrack.
+
+<br />
+
+`midiInstruments :: Midi -> String`
+
+Returns the names of all instruments in the entire MIDI.
+
+<br />
+
+`midiCopyright :: Midi -> Maybe String`
+
+Returns the MIDI's copyright if present.
+
+<br />
+
+`rootedChord :: [Note] -> Maybe Chord`
+
+Heuristically interprets given (unordered) list of notes as a rooted chord. 
+```hs
+let notes = [Note Fsharp 3,
+             Note D 3,
+             Note E 2,
+             Note B 1,
+             Note C 1]
+
+let chord = rootedChord notes
+-- returns Just (Chord C Maj [Natural 9, Sharp 11])
+```
+
+<br />
+
+`annotateChords :: ([Note] -> Maybe Chord) -> MidiTrack -> MidiTrack`
+
+Adds a chord annotation (Text event containing string chord representation) into the given track whenever the set of currently active notes changes and the annotator function returns (Just _).
+```hs
+let track = ... :: MidiTrack
+let annotator = rootedChord
+let track' = annotateChords annotator track
+```
