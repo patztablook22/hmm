@@ -222,3 +222,75 @@ let track = ... :: MidiTrack
 let annotator = rootedChord
 let track' = annotateChords annotator track
 ```
+
+## Data
+
+`PitchClass` 
+
+Represents the cross-octave pitch class, e.g. `C`, `Csharp`, `D`. This type is concerned purely with pitch, not with theoretical interpretation. Therefore, since MIDI uses the equal temperament, enharmonic equivalence applies, i.e. instead of `Dflat` (which is not provided), use `Csharp`.
+
+<br />
+
+`Note`
+
+Represents a single note. Consists of its `PitchClass` and its `Octave` (represented as an `Int`).
+```hs
+let note = Note C 2
+let note' = Note Asharp 5
+```
+
+<br />
+
+`Midi`
+
+Representation of an entire MIDI object. Consists of
+- `header :: MidiHeader`
+- `tracks :: [MidiTrack]`
+
+<br />
+
+`MidiFormat` 
+
+See MIDI specification for MIDI formats.
+
+<br />
+
+`MidiHeader`
+
+See MIDI specification for the MIDI header. Consists of
+- `format :: MidiFormat`
+- `ntracks :: Int`
+- `division :: Int`
+
+<br />
+
+`ChurchMode`
+
+Represents the diatonic church modes, most importantnly `Ionian` ("Major") and `Aeolian` ("Minor").
+
+<br />
+
+`MidiTrack`
+
+Represents a single midi track - a list of ordered `MidiEvent`s.
+
+<br />
+
+`MidiEvent`
+
+An element of `MidiTrack` - consists of its timestamp and `Event` payloads.
+
+<br />
+
+`Event`
+
+The payload of a `MidiEvent`. Can be of many types, such as `NoteOn`, `Text`, `Copyright`, `PitchWheel`.
+
+<br />
+
+`Chord`
+
+A jazz theory influenced representation of a chord. Consists of
+- its `PitchClass`
+- its `ChordType`, e.g. `Maj`, `Min`, `Sus4`
+- its relevant (the highest natural and all altered) `[Extension]`, e.g. `[Flat 7]`
