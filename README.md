@@ -208,8 +208,21 @@ let notes = [Note Fsharp 3,
              Note B 1,
              Note C 1]
 
+let notes' = [Note Csharp 4,
+              Note G 4,
+              Note Fsharp 4,
+              Note E 2]
+
+let notes'' = [Note G 3]
+
 let chord = rootedChord notes
 -- returns Just (Chord C Maj [Natural 9, Sharp 11])
+
+let chord' = rootedChord notes'
+-- returns Just (Chord E Min [Natural 6, Natural 2])
+
+let chord'' = rootedChord notes''
+-- returns Nothing
 ```
 
 <br />
@@ -294,3 +307,5 @@ A jazz theory influenced representation of a chord. Consists of
 - its `PitchClass`
 - its `ChordType`, e.g. `Maj`, `Min`, `Sus4`
 - its relevant (the highest natural and all altered) `[Extension]`, e.g. `[Flat 7]`
+
+see e.g. `rootedChord`
