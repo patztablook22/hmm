@@ -136,23 +136,72 @@ let track' = transposeTrack octave track
 ```
 <br />
 
-`isTextEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Text payload.
+`isTextEvent :: MidiEvent -> Bool`
 
-`isNameEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Name payload.
+Returns true iff the given MidiEvent contains Text payload.
+```hs
+let a = isTextEvent $ MidiEvent 0 (Text "Never gonna give you up, never gonna let you down.")
+-- returns True
 
-`isSysExEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains SysEx payload.
+let b = isTextEvent $ MidiEvent 0 (NoteOn 1 (Note E 3), 127)
+-- returns False
+```
 
-`isNoteOnEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOn payload.
+<br />
 
-`isNoteOffEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOff payload.
+`isNameEvent :: MidiEvent -> Bool`
 
-`isNoteEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains NoteOn or NoteOff payload.
+Returns true iff the given MidiEvent contains Name payload.
+See `isTextEvent`.
 
-`isCopyrightEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Copyright payload.
+<br />
 
-`isInstrumentEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains Instrument payload.
+`isSysExEvent :: MidiEvent -> Bool`
 
-`isUnknownMetaEvent :: MidiEvent -> Bool` - Returns true iff the given MidiEvent contains UnknownMeta payload.
+Returns true iff the given MidiEvent contains SysEx payload.
+See `isTextEvent`.
+
+<br />
+
+`isNoteOnEvent :: MidiEvent -> Bool` 
+
+Returns true iff the given MidiEvent contains NoteOn payload.
+See `isTextEvent`.
+
+<br />
+
+`isNoteOffEvent :: MidiEvent -> Bool` 
+
+Returns true iff the given MidiEvent contains NoteOff payload.
+See `isTextEvent`.
+
+<br />
+
+`isNoteEvent :: MidiEvent -> Bool`
+
+Returns true iff the given MidiEvent contains NoteOn or NoteOff payload.
+See `isTextEvent`.
+
+<br />
+
+`isCopyrightEvent :: MidiEvent -> Bool` 
+
+Returns true iff the given MidiEvent contains Copyright payload.
+See `isTextEvent`.
+
+<br />
+
+`isInstrumentEvent :: MidiEvent -> Bool` 
+
+Returns true iff the given MidiEvent contains Instrument payload.
+See `isTextEvent`.
+
+<br />
+
+`isUnknownMetaEvent :: MidiEvent -> Bool` 
+
+Returns true iff the given MidiEvent contains UnknownMeta payload.
+See `isTextEvent`.
 
 <br />
 
@@ -171,30 +220,37 @@ let pianoBothHands = merge pianoLeftHand pianoRightHand
 `midiTrackName :: MidiTrack -> Maybe String`
 
 Extracts the track's name, if provided by a Name event.
+```hs
+let track = [(MidiEvent 0 (Name "Rick Astley - Never gonna give you up")),
+             ...]
+
+let name = midiTrackName track
+-- returns Just "Rick Astley - Never gonna give you up"
+```
 
 <br />
 
 `midiNames :: Midi -> [String]`
 
-Returns the names of all named MidiTracks.
+Returns the names of all named MidiTracks. See `midiTrackName`.
 
 <br />
 
 `midiTrackInstruments :: MidiTrack -> [String]`
 
-Returns the names of all instruments in a single MidiTrack.
+Returns the names of all instruments in a single MidiTrack. See `midiTrackName`.
 
 <br />
 
 `midiInstruments :: Midi -> String`
 
-Returns the names of all instruments in the entire MIDI.
+Returns the names of all instruments in the entire MIDI. See `midiTrackInstruments`.
 
 <br />
 
 `midiCopyright :: Midi -> Maybe String`
 
-Returns the MIDI's copyright if present.
+Returns the MIDI's copyright if present. Read MIDI specification for copyright placement.
 
 <br />
 
