@@ -69,7 +69,7 @@ cabal install --lib
 ## Functions
 `readMidi :: FilePath -> IO Midi`
 
-Reads given MIDI file
+Reads given MIDI file.
 ```hs
 main = do
     midi <- readMidi "myFile.mid"
@@ -79,7 +79,7 @@ main = do
 
 `writeMidi :: FilePath -> Midi -> IO()`
 
-Writes given MIDI into file
+Writes given MIDI into file.
 ```hs
 main = do
     let midi = ... :: Midi
@@ -209,8 +209,8 @@ let notes = [Note Fsharp 3,
              Note C 1]
 
 let notes' = [Note Csharp 4,
-              Note G 4,
-              Note Fsharp 4,
+              Note G 3,
+              Note Fsharp 3,
               Note E 2]
 
 let notes'' = [Note G 3]
@@ -308,4 +308,4 @@ A jazz theory influenced representation of a chord. Consists of
 - its `ChordType`, e.g. `Maj`, `Min`, `Sus4`
 - its relevant (the highest natural and all altered) `[Extension]`, e.g. `[Flat 7]`
 
-see e.g. `rootedChord`
+see e.g. `rootedChord`.
