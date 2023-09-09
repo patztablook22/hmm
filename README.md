@@ -335,7 +335,7 @@ See MIDI specification for the MIDI header. Consists of
 
 `ChurchMode`
 
-Represents the diatonic church modes, most importantnly `Ionian` ("Major") and `Aeolian` ("Minor").
+Represents the diatonic church modes, most importantly `Ionian` ("Major") and `Aeolian` ("Minor").
 
 <br />
 
